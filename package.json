@@ -1,0 +1,12 @@
+{
+  "name": "jobfinder",
+  "private": true,
+  "description": "Personal real-time job alert dashboard: scans company career feeds, classifies roles, and pushes apply reminders.",
+  "workspaces": ["scanner"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "scan": "npm run scan -w scanner --",
+    "test": "npm test -w scanner",
+    "typecheck": "npm run typecheck -w scanner"
+  }
+}

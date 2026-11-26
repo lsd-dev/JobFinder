@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+# Firebase / service account credentials must never be committed
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+# local dry-run state
+.local-state/
