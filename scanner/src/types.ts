@@ -11,6 +11,7 @@ export type SourceKind =
   | "atlassian"
   | "oracle"
   | "smartrecruiters"
+  | "eightfold"
   | "radancy";
 
 /** One watchlist entry. `source` holds the adapter-specific settings. */
@@ -40,6 +41,7 @@ export type SourceConfig =
   | { kind: "oracle"; host: string; siteNumber: string; publicBase: string }
   | { kind: "smartrecruiters"; company: string }
   | { kind: "radancy"; host: string }
+  | { kind: "eightfold"; host: string; domain: string; query?: string }
   | { kind: "pending"; reason: string };
 
 /** A posting as returned by an adapter, before classification. */

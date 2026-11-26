@@ -9,6 +9,7 @@ import { indiaFacet, parsePostedOn } from "../src/adapters/workday.js";
 import { htmlToText } from "../src/text.js";
 import { describe as srDescribe, toRaw as srRaw } from "../src/adapters/smartrecruiters.js";
 import { parseJobPage, parseSitemap, titleFromSlug } from "../src/adapters/radancy.js";
+import { toRaw as efRaw, withDetail } from "../src/adapters/eightfold.js";
 
 /**
  * Minimal fixtures that mirror the real response shapes observed on 2026-11-26.
@@ -173,5 +174,29 @@ describe("radancy sitemap and job page", () => {
     expect(j).toMatchObject({ title: "Software Engineer 2, Full-Stack", locations: ["Bangalore, Karnataka, India"], postedAt: "2026-11-17T00:00:00.000Z" });
     expect(j.description).toContain("2+ years of experience with Java & SQL");
     expect(parseJobPage("<html></html>")).toEqual({});
+  });
+});
+
+describe("eightfold", () => {
+  const base = "https://example.eightfold.ai";
+
+  it("maps a search result", () => {
+    const j = efRaw(base, {
+      id: 893398948059, displayJobId: "JR1", name: " System Software Engineer ", locations: ["India, Bengaluru"],
+      standardizedLocations: ["Bengaluru, KA, IN", "Pune, MH, IN"], postedTs: 1795564800, positionUrl: "/careers/job/893398948059", workLocationOption: "onsite",
+    });
+    expect(j).toEqual({
+      externalId: "893398948059", title: "System Software Engineer", locations: ["Bengaluru, KA, IN", "Pune, MH, IN"],
+      url: "https://example.eightfold.ai/careers/job/893398948059", postedAt: new Date(1795564800000).toISOString(), remoteHint: false,
+    });
+    expect(efRaw(base, { id: 1, name: "x", locations: ["Remote - India"], workLocationOption: "remote" })).toMatchObject({ locations: ["Remote - India"], remoteHint: true });
+  });
+
+  it("adds the description and only an https public link from the detail call", () => {
+    const job = efRaw(base, { id: 1, name: "Engineer" });
+    expect(withDetail(job, { jobDescription: "<p>1+ years of Java</p>", publicUrl: "https://jobs.example.com/careers/job/1" })).toMatchObject({
+      description: "1+ years of Java", url: "https://jobs.example.com/careers/job/1",
+    });
+    expect(withDetail(job, { publicUrl: "javascript:alert(1)" }).url).toBe("https://example.eightfold.ai/careers/job/1");
   });
 });

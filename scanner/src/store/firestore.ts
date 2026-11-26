@@ -64,11 +64,36 @@ export class FirestoreStore implements Store {
 
   // ---- watchlist and config ------------------------------------------------
 
-  /** Watchlist from Firestore; seeded from `defaults` the first time (empty collection). */
+  /**
+   * Watchlist from Firestore; seeded from `defaults` the first time (empty
+   * collection). After that Firestore is the truth for which companies are
+   * listed, enabled and prioritised, but HOW a default company is read (its
+   * `source`) follows the code, so an adapter change reaches an existing
+   * watchlist. When a source changes, the company's scan state is dropped: the
+   * new source uses different job ids, and the next scan must be a silent
+   * baseline instead of alerting on every open job.
+   */
   async loadWatchlist(defaults: Company[]): Promise<Company[]> {
     const col = this.root.collection("companies");
     const snap = await col.get();
-    if (!snap.empty) return snap.docs.map((d) => d.data() as Company);
+    if (!snap.empty) {
+      const byId = new Map(defaults.map((c) => [c.id, c]));
+      const batch = this.db.batch();
+      let changed = 0;
+      const companies = snap.docs.map((d) => {
+        const stored = d.data() as Company;
+        const source = byId.get(stored.id)?.source;
+        if (!source || stable(source) === stable(stored.source)) return stored;
+        const wasPending = stored.source?.kind === "pending";
+        const next: Company = { ...stored, source, enabled: wasPending && source.kind !== "pending" ? true : stored.enabled };
+        batch.set(col.doc(stored.id), clean(next));
+        batch.delete(this.root.collection("state").doc(stored.id));
+        changed++;
+        return next;
+      });
+      if (changed) await batch.commit();
+      return companies;
+    }
     for (let i = 0; i < defaults.length; i += BATCH) {
       const batch = this.db.batch();
       for (const c of defaults.slice(i, i + BATCH)) batch.set(col.doc(c.id), clean(c));
@@ -238,6 +263,16 @@ export class FirestoreStore implements Store {
 }
 
 /** Drop undefined values (Firestore rejects them). */
+/** JSON with sorted keys, for comparing objects whatever their key order. */
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stable(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v) ?? "null";
+}
+
 function clean<T extends object>(o: T): T {
   return JSON.parse(JSON.stringify(o)) as T;
 }

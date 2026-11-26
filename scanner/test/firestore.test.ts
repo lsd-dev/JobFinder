@@ -138,6 +138,38 @@ describe("FirestoreStore", () => {
   });
 });
 
+describe("watchlist source sync", () => {
+  it("follows the code when a default company's source changes, and restarts its baseline", async () => {
+    const t = setup();
+    await t.store.loadWatchlist([company]);
+    t.set([job("1")]);
+    await t.run();
+    await t.db.collection(`spaces/${KEY}/companies`).doc("acme").update({ priority: true });
+    await t.db.collection(`spaces/${KEY}/companies`).doc("mine").set({ id: "mine", name: "Mine", enabled: true, hqTimeZone: "Asia/Kolkata", source: { kind: "lever", site: "mine" } });
+    expect(t.db.docs.has(`spaces/${KEY}/state/acme`)).toBe(true);
+
+    // Same source, different key order: nothing changes.
+    const sameSource: Company = { ...company, source: JSON.parse('{"kind":"amazon"}') };
+    await new FirestoreStore(t.db as unknown as Firestore, KEY).loadWatchlist([sameSource]);
+    expect(t.db.docs.has(`spaces/${KEY}/state/acme`)).toBe(true);
+
+    const moved: Company = { ...company, source: { kind: "eightfold", host: "acme.eightfold.ai", domain: "acme.com" } };
+    const list = await new FirestoreStore(t.db as unknown as Firestore, KEY).loadWatchlist([moved]);
+    expect(list.find((c) => c.id === "acme")).toMatchObject({ priority: true, source: { kind: "eightfold" } });
+    expect(list.find((c) => c.id === "mine")!.source).toEqual({ kind: "lever", site: "mine" }); // user-added: untouched
+    expect(t.db.docs.get(`spaces/${KEY}/companies/acme`)).toMatchObject({ priority: true, source: { kind: "eightfold" } });
+    expect(t.db.docs.has(`spaces/${KEY}/state/acme`)).toBe(false);
+  });
+
+  it("enables a company when its source becomes supported", async () => {
+    const t = setup();
+    const pending: Company = { ...company, enabled: false, source: { kind: "pending", reason: "x" } };
+    await t.store.loadWatchlist([pending]);
+    const list = await new FirestoreStore(t.db as unknown as Firestore, KEY).loadWatchlist([company]);
+    expect(list[0]).toMatchObject({ enabled: true, source: { kind: "amazon" } });
+  });
+});
+
 describe("health for the weekly check", () => {
   it("loads what the scan wrote", async () => {
     const t = setup();

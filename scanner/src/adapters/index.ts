@@ -10,6 +10,7 @@ import { atlassian } from "./atlassian.js";
 import { oracle } from "./oracle.js";
 import { smartrecruiters } from "./smartrecruiters.js";
 import { radancy } from "./radancy.js";
+import { eightfold } from "./eightfold.js";
 
 /** Build the adapter for a watchlist entry, or null if its source is not supported yet. */
 export function adapterFor(c: Company): Adapter | null {
@@ -26,6 +27,7 @@ export function adapterFor(c: Company): Adapter | null {
     case "oracle": return oracle(s);
     case "smartrecruiters": return smartrecruiters(s.company);
     case "radancy": return radancy(s.host);
+    case "eightfold": return eightfold(s);
     case "pending": return null;
   }
 }

@@ -12,7 +12,8 @@ Undocumented endpoints can change without notice; the weekly health check
 | Apple | `apple` | Search page, embedded `__staticRouterHydrationData` JSON | Country-only "India" locations are common |
 | Atlassian | `atlassian` | `atlassian.com/endpoint/careers/listings` | Full list; only an "updated" date, no posted date |
 | Oracle | `oracle` | Oracle Cloud HCM `recruitingCEJobRequisitions` (site `CX_45001`) | Short description only |
-| Salesforce, Adobe, Nvidia, PayPal, Cisco | `workday` | `{tenant}.wdN.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs` | Throttles by client IP (429 on every tenant after a burst). Shared 5 s queue, no 429 retries |
+| Salesforce, Adobe, Cisco | `workday` | `{tenant}.wdN.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs` | Works from a home or office network, but the first GitHub Actions run (2026-11-26) got HTTP 429 on the first request to every tenant: Workday is behind Cloudflare, which limits GitHub's shared server addresses. Not worked around. No alternative source found yet |
+| Nvidia, PayPal | `eightfold` | `{company}.eightfold.ai/api/pcsx/search` and `/api/pcsx/position_details` | Moved off Workday for the reason above. robots.txt allows `/api/pcsx`. Newest first, 10 per page; detail call gives the description and the company's public link |
 | Stripe, Databricks, GitLab, Coinbase, Cloudflare, Rubrik, Twilio, MongoDB, Okta, Zscaler, Groww, Razorpay | `greenhouse` | `boards-api.greenhouse.io/v1/boards/{board}/jobs` | Full list; Razorpay's board is `razorpaysoftwareprivatelimited` |
 | CRED, Meesho | `lever` | `api.lever.co/v0/postings/{site}?mode=json` | Full list with descriptions |
 | PhonePe | `smartrecruiters` | `api.smartrecruiters.com/v1/companies/PHONEPELIMITED/postings` | Documented public Posting API; newest first, 100 per page; full list (163 jobs on 2026-11-26). Detail call for the description |

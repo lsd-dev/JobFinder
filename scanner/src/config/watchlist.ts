@@ -24,8 +24,8 @@ export const WATCHLIST: Company[] = [
   // --- Workday ---
   { id: "salesforce", name: "Salesforce", enabled: true, hqTimeZone: LA, source: { kind: "workday", host: "salesforce.wd12.myworkdayjobs.com", tenant: "salesforce", site: "External_Career_Site" } },
   { id: "adobe", name: "Adobe", enabled: true, hqTimeZone: LA, source: { kind: "workday", host: "adobe.wd5.myworkdayjobs.com", tenant: "adobe", site: "external_experienced" } },
-  { id: "nvidia", name: "Nvidia", enabled: true, hqTimeZone: LA, source: { kind: "workday", host: "nvidia.wd5.myworkdayjobs.com", tenant: "nvidia", site: "NVIDIAExternalCareerSite" } },
-  { id: "paypal", name: "PayPal", enabled: true, hqTimeZone: LA, source: { kind: "workday", host: "paypal.wd1.myworkdayjobs.com", tenant: "paypal", site: "jobs" } },
+  { id: "nvidia", name: "Nvidia", enabled: true, hqTimeZone: LA, source: { kind: "eightfold", host: "nvidia.eightfold.ai", domain: "nvidia.com" } },
+  { id: "paypal", name: "PayPal", enabled: true, hqTimeZone: LA, source: { kind: "eightfold", host: "paypal.eightfold.ai", domain: "paypal.com" } },
   { id: "cisco", name: "Cisco", enabled: true, hqTimeZone: LA, source: { kind: "workday", host: "cisco.wd5.myworkdayjobs.com", tenant: "cisco", site: "Cisco_Careers" } },
 
   // --- Oracle Cloud HCM ---
