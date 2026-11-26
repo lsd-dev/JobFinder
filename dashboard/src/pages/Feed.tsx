@@ -99,7 +99,7 @@ export function Feed({ jobs, companies, settings, source, onStatus, onError, toa
         </div>
         {filters.view !== "applied" && (
           <select aria-label="Sort" value={filters.sort} onChange={(e) => set({ sort: e.target.value as Filters["sort"] })}>
-            <option value="newest">Newest first</option>
+            <option value="newest">Most recently posted</option>
             <option value="score">Best match first</option>
           </select>
         )}

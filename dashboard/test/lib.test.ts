@@ -52,6 +52,13 @@ describe("job lists", () => {
 
   it("filters and sorts", () => {
     expect(applyFilters(jobs, DEFAULT_FILTERS).map((j) => j.id)).toEqual(["e", "a"]); // newest first
+    // Posting time decides, not when the scanner found the job; no posting date falls back to found time.
+    const byPosted = [
+      job({ id: "old-post", firstSeenAt: "2026-11-26T11:00:00.000Z", postedAt: "2026-11-20T00:00:00.000Z" }),
+      job({ id: "new-post", firstSeenAt: "2026-11-26T09:00:00.000Z", postedAt: "2026-11-26T08:00:00.000Z" }),
+      job({ id: "no-date", firstSeenAt: "2026-11-25T09:00:00.000Z" }),
+    ];
+    expect(applyFilters(byPosted, DEFAULT_FILTERS).map((j) => j.id)).toEqual(["new-post", "no-date", "old-post"]);
     expect(applyFilters(jobs, { ...DEFAULT_FILTERS, sort: "score" }).map((j) => j.id)).toEqual(["a", "e"]);
     expect(applyFilters(jobs, { ...DEFAULT_FILTERS, remoteOnly: true }).map((j) => j.id)).toEqual(["e"]);
     expect(applyFilters(jobs, { ...DEFAULT_FILTERS, tiers: new Set(["A"]) }).map((j) => j.id)).toEqual(["a"]);

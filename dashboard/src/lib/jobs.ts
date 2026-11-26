@@ -16,6 +16,15 @@ export const DEFAULT_FILTERS: Filters = { view: "todo", tiers: new Set(["A", "B"
 const TIER_ORDER: Record<Tier, number> = { A: 0, B: 1, Maybe: 2 };
 const DAY = 86_400_000;
 
+/**
+ * When the company posted the job. Sources that give no posting date (or an
+ * unreadable one) fall back to when the scanner first saw it.
+ */
+export function postedTime(j: StoredJob): number {
+  const posted = j.postedAt ? Date.parse(j.postedAt) : NaN;
+  return Number.isFinite(posted) ? posted : Date.parse(j.firstSeenAt);
+}
+
 /** Which list a job belongs to. Applied wins over closed: you still want to track it. */
 export function viewOf(j: StoredJob): View {
   if (j.status === "applied") return "applied";
@@ -41,7 +50,7 @@ export function applyFilters(jobs: StoredJob[], f: Filters): StoredJob[] {
   );
   if (f.view === "applied") return out.sort((a, b) => (b.appliedAt ?? "").localeCompare(a.appliedAt ?? ""));
   if (f.sort === "score") return out.sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.score - a.score);
-  return out.sort((a, b) => b.firstSeenAt.localeCompare(a.firstSeenAt) || TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.score - a.score);
+  return out.sort((a, b) => postedTime(b) - postedTime(a) || TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.score - a.score);
 }
 
 export function followUpDue(j: StoredJob, followUpDays: number, now: Date): boolean {
