@@ -57,6 +57,20 @@ export function requiredYears(text: string): number | undefined {
   return undefined;
 }
 
+/**
+ * Minimum years stated in the title itself, e.g. "Software Engineer (3-5)",
+ * "SRE (4 to 8 Years)" or "Backend Engineer, 5+ years". Some companies
+ * (PhonePe) state the range only there.
+ */
+export function titleYears(title: string): number | undefined {
+  const m =
+    /(\d{1,2})\s*(?:-|–|to)\s*\d{1,2}\s*\+?\s*(?:years?|yrs?)\b/i.exec(title) ??
+    /\(\s*(\d{1,2})\s*(?:-|–|to)\s*\d{1,2}\s*\)/.exec(title) ??
+    /(\d{1,2})\s*\+\s*(?:years?|yrs?)\b/i.exec(title);
+  const n = m ? Number(m[1]) : NaN;
+  return n <= 20 ? n : undefined;
+}
+
 export interface ClassifyInput {
   title: string;
   description?: string;
@@ -93,7 +107,8 @@ export function classify(input: ClassifyInput): Classification {
     else return reject(`${levelLabel} is above target`);
   }
 
-  const minYears = desc ? requiredYears(desc) : undefined;
+  // A range in the title is explicit, so it wins over the description.
+  const minYears = titleYears(input.title) ?? (desc ? requiredYears(desc) : undefined);
   if (minYears !== undefined) {
     if (minYears > input.maxYears) return { tier: null, score: 0, reasons: [`requires ${minYears}+ years`], minYears };
     if (minYears <= 1) entry = true;

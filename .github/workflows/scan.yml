@@ -1,0 +1,40 @@
+name: Scan
+
+# Scans the watchlist and sends push notifications. GitHub runs scheduled
+# workflows on a best-effort basis, so a run can start several minutes late or
+# occasionally be skipped; the scanner is idempotent and catches up next run.
+on:
+  schedule:
+    # Every 15 minutes, offset from :00 when GitHub's scheduler is busiest.
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two scans at once; a late run waits for the previous one.
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # Output is counts only: this repository's logs are public.
+      - name: Scan
+        run: npm run scan
+        env:
+          SPACE_KEY: ${{ secrets.SPACE_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Optional repository variable; defaults to the Firebase Hosting URL.
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}

@@ -7,6 +7,8 @@ import { toRaw as amazonRaw } from "../src/adapters/amazon.js";
 import { toRaw as msRaw } from "../src/adapters/microsoft.js";
 import { indiaFacet, parsePostedOn } from "../src/adapters/workday.js";
 import { htmlToText } from "../src/text.js";
+import { describe as srDescribe, toRaw as srRaw } from "../src/adapters/smartrecruiters.js";
+import { parseJobPage, parseSitemap, titleFromSlug } from "../src/adapters/radancy.js";
 
 /**
  * Minimal fixtures that mirror the real response shapes observed on 2026-11-26.
@@ -115,5 +117,61 @@ describe("workday helpers", () => {
     ];
     expect(indiaFacet(facets)).toEqual({ Location_Country: ["in-2"] });
     expect(indiaFacet([])).toBeUndefined();
+  });
+});
+
+describe("smartrecruiters", () => {
+  it("maps a posting and builds the public URL", () => {
+    const j = srRaw("ExampleCo", {
+      id: "1000000000001", name: " Software Engineer (1-3) ", releasedDate: "2026-11-26T09:38:16.074Z",
+      location: { city: "Bengaluru", region: "Karnataka", country: "in", remote: false, fullLocation: "Bengaluru, Karnataka, India" },
+    });
+    expect(j).toEqual({
+      externalId: "1000000000001", title: "Software Engineer (1-3)", locations: ["Bengaluru, Karnataka, India"],
+      url: "https://jobs.smartrecruiters.com/ExampleCo/1000000000001", postedAt: "2026-11-26T09:38:16.074Z", remoteHint: false,
+    });
+    expect(srRaw("ExampleCo", { id: "2", name: "x", location: { city: "Pune", country: "in", remote: true } })).toMatchObject({ locations: ["Pune, in"], remoteHint: true });
+  });
+
+  it("puts qualifications first and drops the company blurb", () => {
+    const text = srDescribe({
+      jobAd: { sections: { jobDescription: { text: "<p>Build services</p>" }, qualifications: { text: "<ul><li>1+ years of Java</li></ul>" } } },
+    });
+    expect(text.indexOf("1+ years")).toBeLessThan(text.indexOf("Build services"));
+    expect(srDescribe({})).toBe("");
+  });
+});
+
+describe("radancy sitemap and job page", () => {
+  const xml =
+    '<urlset><url><loc>https://jobs.example.com</loc></url>' +
+    '<url><loc>https://jobs.example.com/category/data-jobs/27595/68338/1</loc></url>' +
+    '<url><loc>https://jobs.example.com/job/bengaluru/software-engineer-ii-full-stack/27595/101</loc><lastmod>2026-11-26T13:05:09Z</lastmod></url>' +
+    '<url><loc>https://jobs.example.com/job/mountain-view/staff-product-manager/27595/102</loc></url>' +
+    '<url><loc>https://jobs.example.com/job/bengaluru/software-engineer-ii-full-stack/27595/101</loc></url>' +
+    '<url><loc>https://other.example.org/job/pune/software-engineer/1/103</loc></url></urlset>';
+
+  it("lists each job once, from this host only", () => {
+    expect(parseSitemap(xml, "jobs.example.com")).toEqual([
+      { externalId: "101", title: "Software Engineer II Full Stack", locations: ["Bengaluru"], url: "https://jobs.example.com/job/bengaluru/software-engineer-ii-full-stack/27595/101" },
+      { externalId: "102", title: "Staff Product Manager", locations: ["Mountain View"], url: "https://jobs.example.com/job/mountain-view/staff-product-manager/27595/102" },
+    ]);
+    expect(titleFromSlug("manager-of-data-and-ai")).toBe("Manager of Data and Ai");
+  });
+
+  it("reads the JobPosting block and ignores other or broken blocks", () => {
+    const ld = {
+      "@type": "JobPosting", title: "Software Engineer 2, Full-Stack", datePosted: "2026-11-17",
+      description: "&lt;p&gt;2+ years of experience with Java &amp;amp; SQL&lt;/p&gt;",
+      jobLocation: [{ address: { addressLocality: "Bangalore", addressRegion: "Karnataka", addressCountry: "India" } }],
+    };
+    const html =
+      '<script type="application/ld+json">{broken</script>' +
+      '<script type="application/ld+json">{"@type":"Organization"}</script>' +
+      `<script type="application/ld+json">${JSON.stringify(ld)}</script>`;
+    const j = parseJobPage(html);
+    expect(j).toMatchObject({ title: "Software Engineer 2, Full-Stack", locations: ["Bangalore, Karnataka, India"], postedAt: "2026-11-17T00:00:00.000Z" });
+    expect(j.description).toContain("2+ years of experience with Java & SQL");
+    expect(parseJobPage("<html></html>")).toEqual({});
   });
 });

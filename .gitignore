@@ -13,3 +13,6 @@ firebase-debug.log
 firestore-debug.log
 # local dry-run state
 .local-state/
+
+# Local tool settings
+.claude/

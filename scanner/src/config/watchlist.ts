@@ -42,6 +42,9 @@ export const WATCHLIST: Company[] = [
   { id: "cloudflare", name: "Cloudflare", enabled: true, hqTimeZone: LA, source: { kind: "greenhouse", board: "cloudflare" } },
   { id: "rubrik", name: "Rubrik", enabled: true, hqTimeZone: LA, source: { kind: "greenhouse", board: "rubrik" } },
   { id: "twilio", name: "Twilio", enabled: true, hqTimeZone: LA, source: { kind: "greenhouse", board: "twilio" } },
+  { id: "mongodb", name: "MongoDB", enabled: true, hqTimeZone: "America/New_York", source: { kind: "greenhouse", board: "mongodb" } },
+  { id: "okta", name: "Okta", enabled: true, hqTimeZone: LA, source: { kind: "greenhouse", board: "okta" } },
+  { id: "zscaler", name: "Zscaler", enabled: true, hqTimeZone: LA, source: { kind: "greenhouse", board: "zscaler" } },
   { id: "groww", name: "Groww", enabled: true, hqTimeZone: IST, source: { kind: "greenhouse", board: "groww" } },
   { id: "razorpay", name: "Razorpay", enabled: true, hqTimeZone: IST, source: { kind: "greenhouse", board: "razorpaysoftwareprivatelimited" } },
 
@@ -49,11 +52,11 @@ export const WATCHLIST: Company[] = [
   { id: "cred", name: "CRED", enabled: true, hqTimeZone: IST, source: { kind: "lever", site: "cred" } },
   { id: "meesho", name: "Meesho", enabled: true, hqTimeZone: IST, source: { kind: "lever", site: "meesho" } },
 
-  // --- Not yet supported (milestone 2: find each site's job API) ---
-  { id: "walmart", name: "Walmart Global Tech", enabled: false, hqTimeZone: "America/Chicago", source: { kind: "pending", reason: "Workday site name unknown; careers.walmart.com loads jobs client-side" } },
-  { id: "goldman", name: "Goldman Sachs", enabled: false, hqTimeZone: "America/New_York", source: { kind: "pending", reason: "higher.gs.com loads jobs client-side" } },
-  { id: "phonepe", name: "PhonePe", enabled: false, hqTimeZone: IST, source: { kind: "pending", reason: "careers page loads jobs client-side" } },
-  { id: "flipkart", name: "Flipkart", enabled: false, hqTimeZone: IST, source: { kind: "pending", reason: "TurboHire career page; API not identified yet" } },
-  { id: "intuit", name: "Intuit", enabled: false, hqTimeZone: LA, source: { kind: "pending", reason: "Radancy HTML results endpoint; parser not written yet" } },
-  { id: "uber", name: "Uber", enabled: false, hqTimeZone: LA, source: { kind: "pending", reason: "Blocked by a Cloudflare bot challenge; we do not bypass bot protection. Replace." } },
+  { id: "phonepe", name: "PhonePe", enabled: true, hqTimeZone: IST, source: { kind: "smartrecruiters", company: "PHONEPELIMITED" } },
+  { id: "intuit", name: "Intuit", enabled: true, hqTimeZone: LA, source: { kind: "radancy", host: "jobs.intuit.com" } },
+
+  // --- Not supported (see docs/sources.md for what was tried) ---
+  { id: "walmart", name: "Walmart Global Tech", enabled: false, hqTimeZone: "America/Chicago", source: { kind: "pending", reason: "No public Workday site; robots.txt disallows the careers search API and the sitemap has job ids only" } },
+  { id: "goldman", name: "Goldman Sachs", enabled: false, hqTimeZone: "America/New_York", source: { kind: "pending", reason: "robots.txt allows only single role pages; the listing API is undocumented" } },
+  { id: "flipkart", name: "Flipkart", enabled: false, hqTimeZone: IST, source: { kind: "pending", reason: "TurboHire API needs a session token and lists about 15 roles; flipkartcareers.com job list is a static page" } },
 ];

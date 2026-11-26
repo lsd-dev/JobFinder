@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classify, requiredYears } from "../src/match/classify.js";
+import { classify, requiredYears, titleYears } from "../src/match/classify.js";
 import { classifyLocation } from "../src/match/location.js";
 import { skillHits, topKeywords } from "../src/match/keywords.js";
 import { extractPay, visaOrRelocation, workAuthBlock } from "../src/match/extras.js";
@@ -76,6 +76,22 @@ describe("classify: tiers", () => {
     expect(c("Software Engineer II").tier).toBe("B");
     expect(c("Software Engineer III, Google Cloud").tier).toBeNull();
     expect(c("Software Engineer III, Google Cloud", undefined, { II: "entry", III: "ok" }).tier).not.toBeNull();
+  });
+});
+
+describe("titleYears", () => {
+  it("reads experience ranges stated in the title", () => {
+    expect(titleYears("Software Engineer (3-5)")).toBe(3);
+    expect(titleYears("Site Reliability Engineer - On-Prem (4 to 8 Years)")).toBe(4);
+    expect(titleYears("Software Engineer (Data Platform, 5-7 years)")).toBe(5);
+    expect(titleYears("Backend Engineer, 5+ yrs")).toBe(5);
+    expect(titleYears("Software Engineer 2 - Payments")).toBeUndefined();
+    expect(titleYears("Platform Engineer 1")).toBeUndefined();
+  });
+
+  it("rejects titles above the limit and keeps those within it", () => {
+    expect(classify({ title: "Software Engineer (Data Platform, 5-7 years)", company: {}, profile: DEFAULT_PROFILE, maxYears: 2 })).toMatchObject({ tier: null, minYears: 5 });
+    expect(classify({ title: "Backend Engineer (1 to 4 Years)", description: "8 years of experience preferred", company: {}, profile: DEFAULT_PROFILE, maxYears: 2 }).tier).not.toBeNull();
   });
 });
 

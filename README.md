@@ -19,12 +19,41 @@ Firebase Hosting (Spark plan), and Firebase Cloud Messaging.
 | Milestone | State |
 |---|---|
 | 1. Scaffold + endpoint probe | Done ([docs/sources.md](docs/sources.md)) |
-| 2. Source adapters | Done for 22 companies; 5 pending, Uber to replace |
+| 2. Source adapters | Done for 27 of 30 companies; 3 not supported ([why](docs/sources.md)) |
 | 3. Matcher (role, level, location, work authorization) | Done, unit-tested |
-| 4. Firestore store | Next |
-| 5. Dashboard (React + Firebase Hosting) | Not started |
-| 6. Push notifications (FCM) | Not started |
-| 7. GitHub Actions workflows + health check | Not started |
+| 4. Firestore store | Code done, unit-tested against an in-memory fake. Not yet run against real Firestore; rules not yet deployed |
+| 5. Dashboard (React + Firebase Hosting, no sign-in) | Built and checked in demo mode. Not yet run against real Firestore or deployed |
+| 6. Push notifications (FCM) | Scanner sender, service worker and dashboard opt-in written. Not yet tested against FCM (needs the Web Push key and deployed rules) |
+| 7. GitHub Actions workflows + health check | Written (`.github/workflows`). Not yet run on GitHub |
+
+## Going live
+
+1. **Rules**: publish `firestore.rules` (Firebase console > Firestore > Rules,
+   or `npx firebase-tools deploy --only firestore:rules`).
+2. **Web Push key**: Firebase console > Project settings > Cloud Messaging >
+   Web Push certificates > Generate key pair. Paste the key into `vapidKey` in
+   `dashboard/src/firebaseConfig.ts` (a public identifier, safe to commit).
+3. **Dashboard**: `npm run build`, then `npx firebase-tools deploy --only hosting`.
+   Open the site, choose **Create a new key** and keep the key somewhere safe.
+4. **GitHub secrets** (repository > Settings > Secrets and variables > Actions):
+   - `SPACE_KEY`: the key from step 3.
+   - `FIREBASE_SERVICE_ACCOUNT`: the full JSON of a service-account key
+     (Firebase console > Project settings > Service accounts > Generate new
+     private key). Never commit this file.
+   - Optional repository *variable* `DASHBOARD_URL` if the dashboard is not at
+     `https://<project-id>.web.app`.
+5. **Notifications**: in the dashboard, Settings > Notifications on this
+   device > Turn on. Repeat on each browser or phone. On iPhone and iPad, add
+   the dashboard to the Home Screen first.
+
+## Workflows
+
+| Workflow | When | What |
+|---|---|---|
+| `scan.yml` | Every 15 minutes (GitHub may start runs late) | Scans the watchlist, stores matches, sends pushes. Logs counts only |
+| `health-check.yml` | Mondays | Fails and sends a push if sites have failed for about a day, or scans have stopped |
+| `keepalive.yml` | 1st and 15th | Re-enables the scheduled workflows so GitHub does not disable them after 60 days without commits |
+| `ci.yml` | Push and pull request | Type-check, tests, dashboard build. Uses no secrets |
 
 ## Local development
 
@@ -36,7 +65,12 @@ npm test                                   # unit tests
 npm run scan -- --dry-run --list           # live scan, local JSON state, prints "pushes"
 npm run scan -- --dry-run --only amazon    # one company
 npm run scan -- --dry-run --reset          # forget local state (next run seeds silently)
+npm run dev                                # dashboard at http://localhost:5173 (add ?demo for sample data)
+npm run build                              # dashboard production build -> dashboard/dist
 ```
+
+A production scan (`npm run scan` without `--dry-run`) needs `SPACE_KEY` and
+Firebase credentials; see [.env.example](.env.example).
 
 Dry runs keep state in `.local-state/state.json` (git-ignored). The first scan
 of a company seeds its existing jobs without notifications.
@@ -48,16 +82,31 @@ scanner/src/
   adapters/   one file per career-site type (greenhouse, lever, workday, amazon, ...)
   match/      classify (role + level), location, keywords, work-auth / pay / visa extras
   schedule/   peak-time reminder computation (time-zone aware, no dependencies)
-  store/      persistence interface + in-memory store (Firestore next)
-  notify/     notification message builders + console notifier
+  store/      persistence interface, in-memory store, Firestore store
+  notify/     notification message builders, console notifier, FCM sender
+  health.ts   weekly health summary (healthcheck.ts is its entry point)
   scan.ts     pipeline: list -> title gate -> enrich -> classify -> store -> notify
   cli.ts      entry point
-scanner/test/ unit tests (matcher, peak time, parsers, pipeline)
+scanner/test/ unit tests (matcher, peak time, parsers, pipeline, Firestore store)
+dashboard/    React + Vite dashboard: jobs, watchlist, health, settings
+firestore.rules, firebase.json   security rules and hosting config
 docs/         source notes
 ```
 
-## Privacy
+## Access and privacy
+
+There is no sign-in. All Firestore data lives under `/spaces/{key}`, where the
+key is a long random string (32+ characters) that is never committed. The
+dashboard receives it from the link you open once per browser; the scanner
+reads it from a GitHub Actions secret. [firestore.rules](firestore.rules)
+denies everything outside that path and stops clients from listing keys.
+Treat the link like a password: anyone who has it can read and edit your data.
 
 This repository is public. It holds no personal data and no secrets: the
 resume-derived profile, settings and job data live in Firestore, and
 credentials live in GitHub Actions secrets. Workflow logs print counts only.
+The Firebase web config in `dashboard/src/firebaseConfig.ts` is a public
+project identifier, not a credential.
+
+Deploy the rules by pasting `firestore.rules` into Firebase console >
+Firestore > Rules, or with `npx firebase-tools deploy --only firestore:rules`.

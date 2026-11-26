@@ -13,19 +13,21 @@ Undocumented endpoints can change without notice; the weekly health check
 | Atlassian | `atlassian` | `atlassian.com/endpoint/careers/listings` | Full list; only an "updated" date, no posted date |
 | Oracle | `oracle` | Oracle Cloud HCM `recruitingCEJobRequisitions` (site `CX_45001`) | Short description only |
 | Salesforce, Adobe, Nvidia, PayPal, Cisco | `workday` | `{tenant}.wdN.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs` | Throttles by client IP (429 on every tenant after a burst). Shared 5 s queue, no 429 retries |
-| Stripe, Databricks, GitLab, Coinbase, Cloudflare, Rubrik, Twilio, Groww, Razorpay | `greenhouse` | `boards-api.greenhouse.io/v1/boards/{board}/jobs` | Full list; Razorpay's board is `razorpaysoftwareprivatelimited` |
+| Stripe, Databricks, GitLab, Coinbase, Cloudflare, Rubrik, Twilio, MongoDB, Okta, Zscaler, Groww, Razorpay | `greenhouse` | `boards-api.greenhouse.io/v1/boards/{board}/jobs` | Full list; Razorpay's board is `razorpaysoftwareprivatelimited` |
 | CRED, Meesho | `lever` | `api.lever.co/v0/postings/{site}?mode=json` | Full list with descriptions |
+| PhonePe | `smartrecruiters` | `api.smartrecruiters.com/v1/companies/PHONEPELIMITED/postings` | Documented public Posting API; newest first, 100 per page; full list (163 jobs on 2026-11-26). Detail call for the description |
+| Intuit | `radancy` | `jobs.intuit.com/sitemap.xml`, then the job page's schema.org `JobPosting` block | robots.txt disallows `/search-jobs/`, so the search endpoint is not used. The sitemap gives id, title slug and city; the page gives the real title, country, date and description |
 
-## Not yet supported
+## Not supported
+
+Checked again on 2026-11-26. Each of these would need something the rules below exclude.
 
 | Company | Status |
 |---|---|
-| Walmart Global Tech | Workday site name unknown (guess returned 422); careers.walmart.com loads jobs client-side |
-| Goldman Sachs | higher.gs.com loads jobs client-side |
-| PhonePe | Careers page loads jobs client-side |
-| Flipkart | TurboHire career page; API not identified |
-| Intuit | Radancy (TalentBrew) HTML results endpoint; parser not written |
-| Uber | Cloudflare bot challenge. We do not bypass bot protection, so Uber needs replacing |
+| Walmart Global Tech | No public Workday job site was found (`walmart.wd5.myworkdayjobs.com` returns 406/422). careers.walmart.com robots.txt disallows `/api` and `/results`; its sitemap lists about 15,600 job ids without titles or locations, so finding India roles would mean fetching every job page |
+| Goldman Sachs | higher.gs.com robots.txt allows only single role pages (`/roles/`) and disallows everything else. The list comes from a GraphQL API on `api-higher.gs.com`, which is undocumented and has no robots.txt. Not used without a decision that this is acceptable |
+| Flipkart | The job list on flipkartcareers.com is a static page (ten truncated titles, no links). The real list is on TurboHire, whose API needs a session token issued to the page, and showed about 15 roles (1 in Technology) |
+| Uber | Dropped from the watchlist: Cloudflare bot challenge, which we do not bypass |
 
 ## Rules for adding a source
 

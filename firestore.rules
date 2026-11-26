@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// JobFinder has no sign-in. All data lives under /spaces/{key}, where {key} is
+// a long random string that is never committed to the repository. Knowing the
+// key is what grants access (the dashboard gets it from the link you open, the
+// scanner from a GitHub Actions secret).
+//
+// Nothing here lets a client list /spaces or run collection-group queries, so
+// the key cannot be discovered through Firestore. Anything not matched below
+// is denied. The scanner uses the Admin SDK, which bypasses these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Reject short, guessable keys outright.
+    function validKey(key) {
+      return key.size() >= 32;
+    }
+
+    // Deliberately no "allow" on the space document itself.
+    match /spaces/{key} {
+
+      // Jobs are created and deleted only by the scanner. The dashboard may
+      // change tracking fields and nothing else.
+      match /jobs/{jobId} {
+        allow read: if validKey(key);
+        allow update: if validKey(key)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'appliedAt', 'notes'])
+          && request.resource.data.status in ['not_applied', 'applied', 'not_interested']
+          && (!('appliedAt' in request.resource.data) || request.resource.data.appliedAt is string)
+          && (!('notes' in request.resource.data)
+              || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000));
+      }
+
+      // Watchlist, editable from the dashboard.
+      match /companies/{companyId} {
+        allow read, delete: if validKey(key);
+        allow create, update: if validKey(key)
+          && request.resource.data.keys().hasOnly(
+               ['id', 'name', 'enabled', 'hqTimeZone', 'priority', 'levelOverrides', 'note', 'source'])
+          && request.resource.data.id == companyId
+          && request.resource.data.name is string && request.resource.data.name.size() <= 100
+          && request.resource.data.enabled is bool
+          && request.resource.data.hqTimeZone is string && request.resource.data.hqTimeZone.size() <= 64
+          && request.resource.data.source is map;
+      }
+
+      // Per-company scan health: written by the scanner, read-only here.
+      match /health/{companyId} {
+        allow read: if validKey(key);
+      }
+
+      // Profile (skills) and settings (quiet hours, peak window, ...).
+      match /config/{docId} {
+        allow read: if validKey(key) && docId in ['profile', 'settings'];
+        allow write: if validKey(key) && docId in ['profile', 'settings']
+          && request.resource.data.keys().size() <= 30;
+      }
+
+      // Push-notification device tokens. A browser manages its own token
+      // document; tokens cannot be listed.
+      match /devices/{token} {
+        allow get, delete: if validKey(key);
+        allow create, update: if validKey(key)
+          && request.resource.data.keys().hasOnly(['token', 'createdAt', 'lastSeenAt', 'userAgent'])
+          && request.resource.data.token == token
+          && (!('userAgent' in request.resource.data)
+              || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300));
+      }
+
+      // /state/{companyId} (seen job ids) has no rule: scanner only.
+    }
+  }
+}

@@ -1,0 +1,31 @@
+name: Health check
+
+# Once a week: fails (GitHub then emails the repository owner) and sends a push
+# if career sites have been failing for about a day or the scans have stopped.
+on:
+  schedule:
+    - cron: "40 3 * * 1" # Mondays 03:40 UTC (09:10 IST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Check scan health
+        run: npm run health
+        env:
+          SPACE_KEY: ${{ secrets.SPACE_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}

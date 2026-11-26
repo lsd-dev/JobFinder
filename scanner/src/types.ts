@@ -9,7 +9,9 @@ export type SourceKind =
   | "google"
   | "apple"
   | "atlassian"
-  | "oracle";
+  | "oracle"
+  | "smartrecruiters"
+  | "radancy";
 
 /** One watchlist entry. `source` holds the adapter-specific settings. */
 export interface Company {
@@ -36,6 +38,8 @@ export type SourceConfig =
   | { kind: "apple" }
   | { kind: "atlassian" }
   | { kind: "oracle"; host: string; siteNumber: string; publicBase: string }
+  | { kind: "smartrecruiters"; company: string }
+  | { kind: "radancy"; host: string }
   | { kind: "pending"; reason: string };
 
 /** A posting as returned by an adapter, before classification. */
