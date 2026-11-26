@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE, DEFAULT_SETTINGS, type Company, type CompanyHealth, type JobStatus, type StoredJob } from "../types";
+import { DEFAULT_PROFILE, DEFAULT_SETTINGS, type Company, type CompanyHealth, type JobStage, type JobStatus, type StoredJob } from "../types";
 import type { Config, DataSource, Unsubscribe } from "./source";
 
 // Invented sample data for trying the interface (open the dashboard with ?demo).
@@ -26,7 +26,7 @@ const JOBS: StoredJob[] = [
   job({ id: "ex_2", companyId: "example", companyName: "Example Corp", title: "Full Stack Engineer", location: "Pune / Remote", tier: "B", score: 50, priority: true, reposted: true, firstSeenAt: iso(30 * H), reasons: ["backend / full-stack title", "skills: react, node.js"] }),
   job({ id: "nw_9", companyId: "northwind", companyName: "Northwind Labs", title: "Software Engineer", location: "Gurugram", tier: "Maybe", score: 10, reasons: [], keywords: [], baseline: true, firstSeenAt: iso(72 * H) }),
   job({ id: "ct_4", companyId: "contoso", companyName: "Contoso Systems", title: "Platform Engineer, Associate", location: "Noida", tier: "A", score: 80, status: "applied", appliedAt: iso(8 * 24 * H), firstSeenAt: iso(9 * 24 * H), notes: "Referred by a former teammate." }),
-  job({ id: "ex_5", companyId: "example", companyName: "Example Corp", title: "API Engineer I", location: "Bengaluru", tier: "A", score: 75, status: "applied", appliedAt: iso(26 * H), firstSeenAt: iso(40 * H), closed: true, closedAt: iso(2 * H) }),
+  job({ id: "ex_5", companyId: "example", companyName: "Example Corp", title: "API Engineer I", location: "Bengaluru", tier: "A", score: 75, status: "applied", appliedAt: iso(26 * H), firstSeenAt: iso(40 * H), closed: true, closedAt: iso(2 * H), stage: "interview" }),
   job({ id: "nw_2", companyId: "northwind", companyName: "Northwind Labs", title: "Cloud Engineer I", location: "Delhi", tier: "B", score: 40, status: "not_interested", firstSeenAt: iso(50 * H) }),
   job({ id: "ct_8", companyId: "contoso", companyName: "Contoso Systems", title: "Backend Developer, Junior", location: "Bengaluru", tier: "A", score: 70, closed: true, closedAt: iso(5 * H), firstSeenAt: iso(6 * 24 * H) }),
 ];
@@ -81,8 +81,17 @@ export class DemoSource implements DataSource {
     this.jobs.set(
       this.jobs.get().map((j) => {
         if (j.id !== jobId) return j;
-        const { appliedAt: _drop, ...rest } = j;
+        const { appliedAt: _drop, stage: _stage, ...rest } = j;
         return status === "applied" ? { ...rest, status, appliedAt: new Date().toISOString() } : { ...rest, status };
+      }),
+    );
+  }
+  async setStage(jobId: string, stage: JobStage | null): Promise<void> {
+    this.jobs.set(
+      this.jobs.get().map((j) => {
+        if (j.id !== jobId) return j;
+        const { stage: _drop, ...rest } = j;
+        return stage ? { ...rest, stage } : rest;
       }),
     );
   }

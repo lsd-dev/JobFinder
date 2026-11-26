@@ -24,8 +24,9 @@ service cloud.firestore {
       match /jobs/{jobId} {
         allow read: if validKey(key);
         allow update: if validKey(key)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'appliedAt', 'notes'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'appliedAt', 'notes', 'stage'])
           && request.resource.data.status in ['not_applied', 'applied', 'not_interested']
+          && (!('stage' in request.resource.data) || request.resource.data.stage in ['interview', 'offer', 'rejected'])
           && (!('appliedAt' in request.resource.data) || request.resource.data.appliedAt is string)
           && (!('notes' in request.resource.data)
               || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000));

@@ -1,6 +1,7 @@
 import type { Adapter, AdapterContext, RawJob } from "../types.js";
 import { getJson } from "../http.js";
 import { htmlToText } from "../text.js";
+import { withDetail, type EfPosition } from "./eightfold.js";
 
 /**
  * Microsoft careers (Eightfold "pcsx" search API behind apply.careers.microsoft.com).
@@ -42,6 +43,13 @@ export function microsoft(): Adapter {
         if (jobs.length < PAGE || jobs.some((j) => ctx.isSeen(j.externalId))) break;
       }
       return out;
+    },
+    // The search result has no description, so the years-of-experience check
+    // needs the detail call (same API as the other Eightfold sites).
+    async enrich(job) {
+      const url = `${BASE}/api/pcsx/position_details?position_id=${encodeURIComponent(job.externalId)}&domain=microsoft.com&hl=en`;
+      const d = await getJson<{ data?: EfPosition }>(url, { headers: { Referer: `${BASE}/careers?domain=microsoft.com` } });
+      return withDetail(job, d.data ?? {});
     },
   };
 }

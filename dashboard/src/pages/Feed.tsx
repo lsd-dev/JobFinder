@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Toast } from "../App";
 import type { DataSource } from "../data/source";
-import { ago, applyFilters, countViews, DEFAULT_FILTERS, followUpDue, linkedInSearch, peakLabel, referralMessage, viewOf, type Filters, type View } from "../lib/jobs";
-import type { Company, JobStatus, Settings, StoredJob, Tier } from "../types";
+import { ago, appliedStats, applyFilters, countViews, DEFAULT_FILTERS, followUpDue, isFresh, linkedInSearch, peakLabel, referralMessage, STAGES, viewOf, type Filters, type View } from "../lib/jobs";
+import type { Company, JobStage, JobStatus, Settings, StoredJob, Tier } from "../types";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "todo", label: "To apply" },
@@ -53,7 +53,8 @@ export function Feed({ jobs, companies, settings, source, onStatus, onError, toa
   }, [linked, jobs]);
 
   const counts = useMemo(() => countViews(jobs ?? []), [jobs]);
-  const visible = useMemo(() => applyFilters(jobs ?? [], filters), [jobs, filters]);
+  const visible = useMemo(() => applyFilters(jobs ?? [], filters, now), [jobs, filters, now]);
+  const stats = useMemo(() => appliedStats(jobs ?? [], now), [jobs, now]);
   const companyOptions = useMemo(() => {
     const names = new Map<string, string>();
     for (const j of jobs ?? []) names.set(j.companyId, j.companyName);
@@ -96,6 +97,9 @@ export function Feed({ jobs, companies, settings, source, onStatus, onError, toa
           <button className={filters.remoteOnly ? "chip on" : "chip"} aria-pressed={filters.remoteOnly} onClick={() => set({ remoteOnly: !filters.remoteOnly })}>
             Remote only
           </button>
+          <button className={filters.freshOnly ? "chip on" : "chip"} aria-pressed={filters.freshOnly} title="Posted in the last 24 hours" onClick={() => set({ freshOnly: !filters.freshOnly })}>
+            Fresh (24 h)
+          </button>
         </div>
         {filters.view !== "applied" && (
           <select aria-label="Sort" value={filters.sort} onChange={(e) => set({ sort: e.target.value as Filters["sort"] })}>
@@ -104,6 +108,18 @@ export function Feed({ jobs, companies, settings, source, onStatus, onError, toa
           </select>
         )}
       </div>
+
+      {filters.view === "applied" && stats.total > 0 && (
+        <dl className="stats" aria-label="Your applications">
+          <div><dt>Applied</dt><dd>{stats.total}</dd></div>
+          <div><dt>Last 7 days</dt><dd>{stats.thisWeek}</dd></div>
+          <div><dt>Waiting</dt><dd>{stats.waiting}</dd></div>
+          <div><dt>Interview</dt><dd>{stats.interview}</dd></div>
+          <div><dt>Offer</dt><dd>{stats.offer}</dd></div>
+          <div><dt>Rejected</dt><dd>{stats.rejected}</dd></div>
+          <div><dt>Reply rate</dt><dd>{stats.replyRate}%</dd></div>
+        </dl>
+      )}
 
       {jobs === null ? (
         <p className="empty">Loading jobs...</p>
@@ -138,6 +154,11 @@ function JobCard({ job: j, now, settings, highlight, source, onStatus, onError, 
     if (notes === (j.notes ?? "")) return;
     source.setNotes(j.id, notes).then(() => toast({ text: "Notes saved" }), onError);
   };
+  const saveStage = (value: string) => {
+    const stage = (value || null) as JobStage | null;
+    const label = STAGES.find((s) => s.id === stage)?.label;
+    source.setStage(j.id, stage).then(() => toast({ text: label ? `Marked as ${label.toLowerCase()}` : "Marked as waiting for reply" }), onError);
+  };
   const copyMessage = () => navigator.clipboard.writeText(referralMessage(j)).then(() => toast({ text: "Referral message copied" }), onError);
 
   return (
@@ -163,11 +184,23 @@ function JobCard({ job: j, now, settings, highlight, source, onStatus, onError, 
             <option value="applied">Applied</option>
             <option value="not_interested">Not interested</option>
           </select>
+          {j.status === "applied" && (
+            <select aria-label={`Reply for ${j.title}`} value={j.stage ?? ""} onChange={(e) => saveStage(e.target.value)}>
+              <option value="">Waiting for reply</option>
+              {STAGES.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
       <div className="tags">
         {j.closed && <span className="tag bad">Closed{j.closedAt ? ` ${ago(j.closedAt, now)}` : ""}</span>}
+        {j.stage === "interview" && <span className="tag accent">Interview</span>}
+        {j.stage === "offer" && <span className="tag good">Offer</span>}
+        {j.stage === "rejected" && <span className="tag bad">Rejected</span>}
+        {viewOf(j) === "todo" && isFresh(j, now) && <span className="tag good" title="Posted in the last 24 hours">Fresh</span>}
         {due && <span className="tag warn">Follow up</span>}
         {peak && <span className={peak.urgent ? "tag warn" : "tag"}>{peak.text}</span>}
         {j.priority && <span className="tag accent">Priority company</span>}

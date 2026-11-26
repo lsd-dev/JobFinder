@@ -78,6 +78,8 @@ export interface AdapterContext {
 
 export type Tier = "A" | "B" | "Maybe";
 export type JobStatus = "not_applied" | "applied" | "not_interested";
+/** Where an application stands once the company has replied. Absent = no reply yet. */
+export type JobStage = "interview" | "offer" | "rejected";
 
 export interface LocationResult {
   accepted: boolean;
@@ -124,6 +126,8 @@ export interface StoredJob {
   priority: boolean;
   status: JobStatus;
   appliedAt?: string;
+  /** Set on the dashboard for applied jobs; stops the follow-up reminder. */
+  stage?: JobStage;
   closed: boolean;
   closedAt?: string;
   notes?: string;

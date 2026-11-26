@@ -7,7 +7,7 @@ Undocumented endpoints can change without notice; the weekly health check
 | Company | Adapter | Endpoint | Notes |
 |---|---|---|---|
 | Amazon | `amazon` | `amazon.jobs/en/search.json?country=IND&category[]=software-development&sort=recent` | Newest first; stops at first seen job |
-| Microsoft | `microsoft` | `apply.careers.microsoft.com/api/pcsx/search` (Eightfold) | Needs `Referer`; 10 per page; returns 429 on bursts |
+| Microsoft | `microsoft` | `apply.careers.microsoft.com/api/pcsx/search` (Eightfold) | Needs `Referer`; 10 per page; returns 429 on bursts. Description from `/api/pcsx/position_details` (robots.txt allows `/api/pcsx`) for jobs that pass the title check |
 | Google | `google` | Results page, embedded `AF_initDataCallback ds:1` JSON | No public API; positional fields (see adapter) |
 | Apple | `apple` | Search page, embedded `__staticRouterHydrationData` JSON | Country-only "India" locations are common |
 | Atlassian | `atlassian` | `atlassian.com/endpoint/careers/listings` | Full list; only an "updated" date, no posted date |

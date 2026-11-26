@@ -3,7 +3,8 @@ import type { Toast } from "../App";
 import type { Config, DataSource } from "../data/source";
 import { forgetKey, linkWithKey } from "../lib/key";
 import { disablePush, enablePush, pushStatus, testNotification, type PushStatus } from "../lib/push";
-import type { Settings } from "../types";
+import { COMMON_ZONES, otherZones } from "../lib/zones";
+import { isValidTimeZone, type Settings, type Tier } from "../types";
 
 interface Props {
   source: DataSource;
@@ -15,6 +16,12 @@ interface Props {
 }
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ALERT_TIERS: { id: Tier; label: string }[] = [
+  { id: "A", label: "Tier A" },
+  { id: "B", label: "Tier B" },
+  { id: "Maybe", label: "Maybe" },
+];
+const OTHER_ZONES = otherZones();
 
 export function SettingsPage({ source, spaceKey, onSaved, onForget, onError, toast }: Props) {
   const [cfg, setCfg] = useState<Config | null>(null);
@@ -34,7 +41,12 @@ export function SettingsPage({ source, spaceKey, onSaved, onForget, onError, toa
   const times = [s.quietHours.start, s.quietHours.end, s.peakWindow.start, s.peakWindow.end, s.eveningFallback];
   const numbersOk = [s.maxYears, s.followUpDays, s.retentionDays].every((n) => Number.isFinite(n) && n >= 0) && s.followUpDays >= 1 && s.retentionDays >= 1;
   const skillList = [...new Set(skills.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))].slice(0, 80);
-  const valid = times.every((t) => TIME.test(t)) && numbersOk && skillList.length > 0;
+  const zoneOk = isValidTimeZone(s.userTimeZone);
+  const zoneListed = COMMON_ZONES.some(([z]) => z === s.userTimeZone) || OTHER_ZONES.includes(s.userTimeZone);
+  const alertTiers: Tier[] = Array.isArray(s.notifyTiers) ? s.notifyTiers : [];
+  const toggleAlert = (t: Tier) =>
+    patch({ notifyTiers: ALERT_TIERS.map((x) => x.id).filter((x) => (x === t ? !alertTiers.includes(x) : alertTiers.includes(x))) });
+  const valid = times.every((t) => TIME.test(t)) && numbersOk && skillList.length > 0 && zoneOk;
 
   const save = () => {
     const next: Config = { profile: { skills: skillList }, settings: s };
@@ -92,11 +104,38 @@ export function SettingsPage({ source, spaceKey, onSaved, onForget, onError, toa
           </label>
           <label>
             Your time zone
-            <input value={s.userTimeZone} onChange={(e) => patch({ userTimeZone: e.target.value.trim() })} />
+            <select value={s.userTimeZone} onChange={(e) => patch({ userTimeZone: e.target.value })}>
+              {!zoneListed && <option value={s.userTimeZone}>{zoneOk ? s.userTimeZone : `${s.userTimeZone} (not valid, choose another)`}</option>}
+              <optgroup label="Common">
+                {COMMON_ZONES.map(([z, label]) => <option key={z} value={z}>{label}</option>)}
+              </optgroup>
+              {OTHER_ZONES.length > 0 && (
+                <optgroup label="All time zones">
+                  {OTHER_ZONES.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+                </optgroup>
+              )}
+            </select>
           </label>
           {num("Follow-up after (days)", "followUpDays", "Reminder to follow up on a job you applied to.")}
           {num("Keep unapplied jobs (days)", "retentionDays", "Older jobs you did not apply to are deleted.")}
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Alerts</h2>
+        <p className="muted">Send new-match and apply-now alerts for:</p>
+        <div className="chips" role="group" aria-label="Tiers that send alerts">
+          {ALERT_TIERS.map((t) => (
+            <button key={t.id} className={alertTiers.includes(t.id) ? "chip on" : "chip"} aria-pressed={alertTiers.includes(t.id)} onClick={() => toggleAlert(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="hint">
+          {alertTiers.length === 0
+            ? "No new-match or apply-now alerts will be sent. Matches still appear on the Jobs page."
+            : "Matches in the other tiers still appear on the Jobs page, without an alert. Follow-up reminders are not affected."}
+        </span>
       </div>
 
       <button className="primary" disabled={!valid} onClick={save}>Save settings</button>

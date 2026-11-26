@@ -3,7 +3,7 @@ import type { Adapter, Company, RawJob } from "../src/types.js";
 import { scanAll } from "../src/scan.js";
 import { MemoryStore } from "../src/store/memory.js";
 import { ConsoleNotifier } from "../src/notify/messages.js";
-import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from "../src/config/profile.js";
+import { DEFAULT_PROFILE, DEFAULT_SETTINGS, isValidTimeZone, sanitizeSettings, type Settings } from "../src/config/profile.js";
 
 const company: Company = { id: "acme", name: "Acme", enabled: true, priority: true, hqTimeZone: "America/Los_Angeles", source: { kind: "amazon" } };
 
@@ -27,6 +27,30 @@ function setup(complete = true) {
     scanAll([company], { store, notifier, profile: DEFAULT_PROFILE, settings: DEFAULT_SETTINGS, now: () => now, adapterFor: () => src.adapter });
   return { store, notifier, src, run, setNow: (d: Date) => (now = d) };
 }
+
+describe("settings from the dashboard", () => {
+  it("accepts real time zones only", () => {
+    expect(isValidTimeZone("Asia/Kolkata")).toBe(true);
+    expect(isValidTimeZone("Asia/Calcutta")).toBe(true); // older name some browsers still list
+    expect(isValidTimeZone("Asia/Kolkatta")).toBe(false);
+    expect(isValidTimeZone("")).toBe(false);
+    expect(isValidTimeZone(undefined)).toBe(false);
+  });
+
+  it("replaces unusable values with the defaults and keeps good ones", () => {
+    const s = sanitizeSettings({
+      userTimeZone: "nope", quietHours: { start: "22:00", end: "7am" }, eveningFallback: "21:30", followUpDays: 0, maxYears: 3,
+      notifyTiers: ["B", "bogus", "A"] as unknown as Settings["notifyTiers"],
+    });
+    expect(s).toMatchObject({
+      userTimeZone: "Asia/Kolkata", quietHours: { start: "22:00", end: "07:00" }, eveningFallback: "21:30",
+      followUpDays: DEFAULT_SETTINGS.followUpDays, maxYears: 3, notifyTiers: ["A", "B"], peakWindow: DEFAULT_SETTINGS.peakWindow,
+    });
+    expect(sanitizeSettings(undefined)).toEqual(DEFAULT_SETTINGS);
+    expect(sanitizeSettings({ notifyTiers: [] }).notifyTiers).toEqual([]); // "no alerts" is a valid choice
+    expect(sanitizeSettings({ notifyTiers: "A" as unknown as Settings["notifyTiers"] }).notifyTiers).toEqual(DEFAULT_SETTINGS.notifyTiers);
+  });
+});
 
 describe("scan pipeline", () => {
   it("first scan seeds silently, the next scan alerts only on new jobs", async () => {
@@ -114,6 +138,58 @@ describe("scan pipeline", () => {
     t.src.set([{ ...job("r1", "Backend Engineer I", ["Remote"]), description: "1 year of experience. Must be authorized to work in the United States." }]);
     await t.run();
     expect(t.store.jobs).toHaveLength(0);
+  });
+
+  it("skips the follow-up once a reply (stage) is recorded", async () => {
+    const t = setup();
+    t.src.set([]);
+    await t.run();
+    t.src.set([job("8")]);
+    await t.run();
+    const j = t.store.jobs[0]!;
+    j.status = "applied";
+    j.appliedAt = "2026-11-26T09:00:00Z";
+    j.stage = "interview";
+    t.setNow(new Date("2026-12-03T09:00:00Z"));
+    expect((await t.run()).notifications.followUp).toBe(0);
+  });
+
+  it("alerts only for the chosen tiers, and never later for the others", async () => {
+    const store = new MemoryStore();
+    const notifier = new ConsoleNotifier();
+    const src = fake();
+    let settings = { ...DEFAULT_SETTINGS, notifyTiers: ["A"] as Settings["notifyTiers"] };
+    let now = new Date("2026-11-26T08:30:00Z");
+    const run = () => scanAll([company], { store, notifier, profile: DEFAULT_PROFILE, settings, now: () => now, adapterFor: () => src.adapter });
+    src.set([]);
+    await run();
+    // "Software Engineer" with no description is a Maybe; the new-grad role is Tier A.
+    src.set([{ ...job("m1", "Software Engineer"), description: undefined }, job("a1", "Software Engineer - New Grad")]);
+    const r = await run();
+    expect(store.jobs.map((j) => j.tier).sort()).toEqual(["A", "Maybe"]);
+    expect(r.notifications.found).toBe(1);
+    expect(notifier.sent).toHaveLength(1);
+    expect(notifier.sent[0]!.title).toMatch(/New Tier A/);
+
+    // Turning Maybe alerts on afterwards must not replay the old match.
+    settings = { ...DEFAULT_SETTINGS };
+    now = new Date("2026-11-26T08:45:00Z");
+    expect((await run()).notifications.found).toBe(0);
+  });
+
+  it("keeps scanning and alerting when settings or a company hold an invalid time zone", async () => {
+    const store = new MemoryStore();
+    const notifier = new ConsoleNotifier();
+    const src = fake();
+    const bad = { ...DEFAULT_SETTINGS, userTimeZone: "Asia/Kolkatta", quietHours: { start: "25:00", end: "x" } };
+    const run = () =>
+      scanAll([{ ...company, hqTimeZone: "Nowhere/City" }], { store, notifier, profile: DEFAULT_PROFILE, settings: bad, now: () => new Date("2026-11-26T08:30:00Z"), adapterFor: () => src.adapter });
+    src.set([]);
+    await run();
+    src.set([job("1"), job("2", "Backend Engineer I", ["Remote"])]);
+    const r = await run();
+    expect(r.companies[0]).toMatchObject({ ok: true, matched: 2 });
+    expect(r.notifications.found).toBe(2);
   });
 
   it("records a failure without throwing and keeps other state", async () => {

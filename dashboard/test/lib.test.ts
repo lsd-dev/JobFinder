@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectAts, slugify } from "../src/lib/detectAts";
-import { ago, applyFilters, countViews, DEFAULT_FILTERS, followUpDue, linkedInSearch, peakLabel, viewOf } from "../src/lib/jobs";
+import { ago, appliedStats, applyFilters, countViews, DEFAULT_FILTERS, followUpDue, isFresh, linkedInSearch, peakLabel, viewOf } from "../src/lib/jobs";
 import { isValidKey, keyFromHash } from "../src/lib/key";
 import type { StoredJob } from "../src/types";
 
@@ -76,6 +76,32 @@ describe("job lists", () => {
     expect(peakLabel(job({ peakAt: "2026-11-26T03:00:00.000Z" }), NOW)).toMatchObject({ urgent: true });
     expect(peakLabel(job({ applyNow: true }), NOW)?.text).toMatch(/Apply now/);
     expect(peakLabel(job({ status: "applied" }), NOW)).toBeNull();
+  });
+
+  it("marks jobs posted in the last 24 hours as fresh", () => {
+    expect(isFresh(job({ postedAt: "2026-11-26T01:00:00.000Z" }), NOW)).toBe(true);
+    expect(isFresh(job({ postedAt: "2026-11-25T11:00:00.000Z" }), NOW)).toBe(false);
+    // No posting date: the time it was found counts, unless it was already open at the first scan.
+    expect(isFresh(job(), NOW)).toBe(true);
+    expect(isFresh(job({ baseline: true }), NOW)).toBe(false);
+    expect(isFresh(job({ baseline: true, postedAt: "2026-11-26T01:00:00.000Z" }), NOW)).toBe(true);
+    const list = [job({ id: "new", postedAt: "2026-11-26T01:00:00.000Z" }), job({ id: "old", postedAt: "2026-11-20T01:00:00.000Z" })];
+    expect(applyFilters(list, { ...DEFAULT_FILTERS, freshOnly: true }, NOW).map((j) => j.id)).toEqual(["new"]);
+  });
+
+  it("counts applications by stage and stops the follow-up once there is a reply", () => {
+    const applied = (id: string, appliedAt: string, stage?: StoredJob["stage"]) => job({ id, status: "applied", appliedAt, ...(stage ? { stage } : {}) });
+    const list = [
+      applied("w1", "2026-11-25T12:00:00.000Z"),
+      applied("w2", "2026-11-10T12:00:00.000Z"),
+      applied("i", "2026-11-22T12:00:00.000Z", "interview"),
+      applied("r", "2026-11-01T12:00:00.000Z", "rejected"),
+      job({ id: "todo" }),
+    ];
+    expect(appliedStats(list, NOW)).toEqual({ total: 4, thisWeek: 2, waiting: 2, interview: 1, offer: 0, rejected: 1, replyRate: 50 });
+    expect(appliedStats([job()], NOW)).toMatchObject({ total: 0, replyRate: null });
+    expect(followUpDue(list[1]!, 6, NOW)).toBe(true);
+    expect(followUpDue(list[3]!, 6, NOW)).toBe(false); // rejected: nothing to follow up
   });
 
   it("LinkedIn links are plain encoded searches", () => {

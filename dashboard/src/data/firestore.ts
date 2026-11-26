@@ -4,7 +4,7 @@ import {
   persistentMultipleTabManager, setDoc, updateDoc, type Firestore,
 } from "firebase/firestore";
 import { firebaseConfig } from "../firebaseConfig";
-import { DEFAULT_PROFILE, DEFAULT_SETTINGS, type Company, type CompanyHealth, type JobStatus, type Profile, type Settings, type StoredJob } from "../types";
+import { DEFAULT_PROFILE, DEFAULT_SETTINGS, type Company, type CompanyHealth, type JobStage, type JobStatus, type Profile, type Settings, type StoredJob } from "../types";
 import type { Config, DataSource, Unsubscribe } from "./source";
 
 /** Firestore stores "not set" notification markers as null; the UI treats null as absent. */
@@ -55,11 +55,17 @@ export class FirestoreSource implements DataSource {
   }
 
   async setStatus(jobId: string, status: JobStatus): Promise<void> {
-    // The security rules allow changing only status, appliedAt and notes.
+    // The security rules allow changing only status, appliedAt, stage and notes.
     await updateDoc(doc(this.db, this.root, "jobs", jobId), {
       status,
       appliedAt: status === "applied" ? new Date().toISOString() : deleteField(),
+      // A stage only means something for an applied job.
+      ...(status === "applied" ? {} : { stage: deleteField() }),
     });
+  }
+
+  async setStage(jobId: string, stage: JobStage | null): Promise<void> {
+    await updateDoc(doc(this.db, this.root, "jobs", jobId), { stage: stage ?? deleteField() });
   }
 
   async setNotes(jobId: string, notes: string): Promise<void> {

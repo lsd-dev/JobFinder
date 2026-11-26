@@ -9,7 +9,12 @@ remote), and sends browser push notifications:
 - **Apply now**: at the start of the recruiter's 08:00-10:00 weekday window in
   *their* time zone (moved to 22:45 IST the evening before if that falls in
   your 23:00-07:00 quiet hours).
-- **Follow up**: a few days after you mark a job Applied.
+- **Follow up**: a few days after you mark a job Applied, unless you have
+  recorded a reply (Interview, Offer or Rejected).
+
+In Settings you choose which tiers (A, B, Maybe) send alerts; the rest still
+show on the dashboard. Jobs posted in the last 24 hours carry a **Fresh** badge,
+and the Applied list shows counts by stage and a reply rate.
 
 Everything runs on free tiers: GitHub Actions (public repo), Firestore and
 Firebase Hosting (Spark plan), and Firebase Cloud Messaging.
@@ -21,12 +26,16 @@ Firebase Hosting (Spark plan), and Firebase Cloud Messaging.
 | 1. Scaffold + endpoint probe | Done ([docs/sources.md](docs/sources.md)) |
 | 2. Source adapters | Done for 27 of 30 companies; 3 not supported ([why](docs/sources.md)) |
 | 3. Matcher (role, level, location, work authorization) | Done, unit-tested |
-| 4. Firestore store | Code done, unit-tested against an in-memory fake. Not yet run against real Firestore; rules not yet deployed |
-| 5. Dashboard (React + Firebase Hosting, no sign-in) | Built and checked in demo mode. Not yet run against real Firestore or deployed |
-| 6. Push notifications (FCM) | Scanner sender, service worker and dashboard opt-in written. Not yet tested against FCM (needs the Web Push key and deployed rules) |
-| 7. GitHub Actions workflows + health check | Written (`.github/workflows`). Not yet run on GitHub |
+| 4. Firestore store | Running against real Firestore; rules deployed |
+| 5. Dashboard (React + Firebase Hosting, no sign-in) | Deployed to Firebase Hosting |
+| 6. Push notifications (FCM) | Scanner sender, service worker and dashboard opt-in written; Web Push key set. Not yet confirmed end to end on a device |
+| 7. GitHub Actions workflows + health check | Scan workflow running on GitHub. Three Workday sites (Salesforce, Adobe, Cisco) return HTTP 429 to GitHub's servers. Health-check and keepalive workflows not yet observed running |
 
 ## Going live
+
+After changing `firestore.rules` or anything under `dashboard/`, publish again
+with `npm run build` and `npx firebase-tools deploy --only firestore:rules,hosting`.
+The scanner needs no deploy: GitHub runs whatever is on `main`.
 
 1. **Rules**: publish `firestore.rules` (Firebase console > Firestore > Rules,
    or `npx firebase-tools deploy --only firestore:rules`).
@@ -57,7 +66,7 @@ Firebase Hosting (Spark plan), and Firebase Cloud Messaging.
 
 ## Local development
 
-Requires Node 22+.
+Requires Node 22 or newer (the workflows use the version in `.nvmrc`).
 
 ```sh
 npm install

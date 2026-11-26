@@ -1,6 +1,7 @@
 import type { CollectionReference, DocumentReference, Firestore } from "firebase-admin/firestore";
 import type { Company, StoredJob } from "../types.js";
 import type { Profile, Settings } from "../config/profile.js";
+import { sanitizeSettings } from "../config/profile.js";
 import { safeId } from "../text.js";
 import type { CompanyHealth, CompanyState, NotifyField, Store } from "./types.js";
 
@@ -107,7 +108,7 @@ export class FirestoreStore implements Store {
     const cfg = this.root.collection("config");
     const [p, s] = await this.db.getAll(cfg.doc("profile"), cfg.doc("settings"));
     const profile = { ...defaults.profile, ...(p?.data() ?? {}) } as Profile;
-    const settings = { ...defaults.settings, ...(s?.data() ?? {}) } as Settings;
+    const settings = sanitizeSettings(s?.data() as Partial<Settings> | undefined, defaults.settings);
     if (!Array.isArray(profile.skills) || profile.skills.length === 0) profile.skills = defaults.profile.skills;
     return { profile, settings };
   }
@@ -233,7 +234,8 @@ export class FirestoreStore implements Store {
 
   async dueFollowUps(appliedBeforeIso: string): Promise<StoredJob[]> {
     const snap = await this.jobsCol.where("status", "==", "applied").where("followUpRemindedAt", "==", null).get();
-    return snap.docs.map((d) => fromDoc(d.data())).filter((j) => !!j.appliedAt && j.appliedAt <= appliedBeforeIso);
+    // A stage (interview, offer, rejected) means the company replied: nothing to follow up.
+    return snap.docs.map((d) => fromDoc(d.data())).filter((j) => !j.stage && !!j.appliedAt && j.appliedAt <= appliedBeforeIso);
   }
 
   async markNotified(ids: string[], field: NotifyField, atIso: string): Promise<void> {
@@ -262,7 +264,6 @@ export class FirestoreStore implements Store {
   }
 }
 
-/** Drop undefined values (Firestore rejects them). */
 /** JSON with sorted keys, for comparing objects whatever their key order. */
 function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
@@ -273,6 +274,7 @@ function stable(v: unknown): string {
   return JSON.stringify(v) ?? "null";
 }
 
+/** Drop undefined values (Firestore rejects them). */
 function clean<T extends object>(o: T): T {
   return JSON.parse(JSON.stringify(o)) as T;
 }

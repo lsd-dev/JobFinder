@@ -38,6 +38,7 @@ export interface Store {
 
   dueFound(): Promise<StoredJob[]>;
   duePeakReminders(nowIso: string): Promise<StoredJob[]>;
+  /** Applied before `appliedBeforeIso`, not yet reminded, and no reply recorded (no stage). */
   dueFollowUps(appliedBeforeIso: string): Promise<StoredJob[]>;
   markNotified(ids: string[], field: NotifyField, atIso: string): Promise<void>;
 

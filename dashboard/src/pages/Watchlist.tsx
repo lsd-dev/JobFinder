@@ -2,18 +2,9 @@ import { useMemo, useState } from "react";
 import type { Toast } from "../App";
 import type { DataSource } from "../data/source";
 import { detectAts, slugify } from "../lib/detectAts";
+import { COMMON_ZONES as ZONES } from "../lib/zones";
 import type { Company, CompanyHealth } from "../types";
 
-const ZONES: [string, string][] = [
-  ["Asia/Kolkata", "India (IST)"],
-  ["America/Los_Angeles", "US Pacific"],
-  ["America/Chicago", "US Central"],
-  ["America/New_York", "US Eastern"],
-  ["Europe/London", "UK"],
-  ["Europe/Berlin", "Central Europe"],
-  ["Asia/Singapore", "Singapore"],
-  ["Australia/Sydney", "Sydney"],
-];
 
 interface Props {
   companies: Company[];

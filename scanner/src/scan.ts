@@ -1,5 +1,6 @@
 import type { Adapter, Company, RawJob, StoredJob } from "./types.js";
 import type { Profile, Settings } from "./config/profile.js";
+import { isValidTimeZone, sanitizeSettings } from "./config/profile.js";
 import type { Store } from "./store/types.js";
 import type { Notifier } from "./notify/messages.js";
 import { followUpMessage, foundMessage, peakMessage } from "./notify/messages.js";
@@ -45,10 +46,13 @@ export interface ScanReport {
   purged: number;
 }
 
-export async function scanAll(companies: Company[], deps: ScanDeps): Promise<ScanReport> {
+export async function scanAll(companies: Company[], input: ScanDeps): Promise<ScanReport> {
+  // Settings come from the dashboard: never let a bad value stop the scan.
+  const deps: ScanDeps = { ...input, settings: sanitizeSettings(input.settings) };
   const now = deps.now ?? (() => new Date());
   const log = deps.log ?? (() => undefined);
   const reports: CompanyReport[] = [];
+  const alertTiers = new Set(deps.settings.notifyTiers);
 
   // Companies run sequentially; the HTTP layer already spaces requests per host,
   // and a sequential run keeps logs readable and well under GitHub's time limits.
@@ -59,21 +63,21 @@ export async function scanAll(companies: Company[], deps: ScanDeps): Promise<Sca
   const nowIso = now().toISOString();
   const notifications = { found: 0, peak: 0, followUp: 0 };
 
+  // Matches in a tier the user switched alerts off for are marked as handled
+  // without a push, so they neither pile up nor fire later if the setting changes.
   const found = await deps.store.dueFound();
-  const fm = foundMessage(found, deps.settings.userTimeZone);
-  if (fm) {
-    await deps.notifier.send(fm);
-    await deps.store.markNotified(found.map((j) => j.id), "foundNotifiedAt", nowIso);
-    notifications.found = found.length;
-  }
+  const foundAlerts = found.filter((j) => alertTiers.has(j.tier));
+  const fm = foundMessage(foundAlerts, deps.settings.userTimeZone);
+  if (fm) await deps.notifier.send(fm);
+  if (found.length) await deps.store.markNotified(found.map((j) => j.id), "foundNotifiedAt", nowIso);
+  notifications.found = foundAlerts.length;
 
   const peak = await deps.store.duePeakReminders(nowIso);
-  const pm = peakMessage(peak);
-  if (pm) {
-    await deps.notifier.send(pm);
-    await deps.store.markNotified(peak.map((j) => j.id), "peakRemindedAt", nowIso);
-    notifications.peak = peak.length;
-  }
+  const peakAlerts = peak.filter((j) => alertTiers.has(j.tier));
+  const pm = peakMessage(peakAlerts);
+  if (pm) await deps.notifier.send(pm);
+  if (peak.length) await deps.store.markNotified(peak.map((j) => j.id), "peakRemindedAt", nowIso);
+  notifications.peak = peakAlerts.length;
 
   const follow = await deps.store.dueFollowUps(new Date(now().getTime() - deps.settings.followUpDays * DAY).toISOString());
   const fu = followUpMessage(follow, deps.settings.followUpDays);
@@ -87,8 +91,10 @@ export async function scanAll(companies: Company[], deps: ScanDeps): Promise<Sca
   return { companies: reports, notifications, purged };
 }
 
-async function scanCompany(c: Company, deps: Required<Pick<ScanDeps, "now" | "log">> & ScanDeps): Promise<CompanyReport> {
+async function scanCompany(company: Company, deps: Required<Pick<ScanDeps, "now" | "log">> & ScanDeps): Promise<CompanyReport> {
   const { store, log } = deps;
+  // Same reason as the settings: an unusable time zone falls back instead of failing the company.
+  const c = isValidTimeZone(company.hqTimeZone) ? company : { ...company, hqTimeZone: "America/Los_Angeles" };
   const startedAt = deps.now();
   const adapter = (deps.adapterFor ?? adapterFor)(c);
   const base: CompanyReport = { companyId: c.id, ok: false, fetched: 0, fresh: 0, matched: 0, closed: 0, baseline: false };

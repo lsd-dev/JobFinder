@@ -1,4 +1,4 @@
-import type { StoredJob, Tier } from "../types";
+import type { JobStage, StoredJob, Tier } from "../types";
 
 export type View = "todo" | "applied" | "hidden" | "closed";
 
@@ -8,10 +8,12 @@ export interface Filters {
   companyId: string;
   query: string;
   remoteOnly: boolean;
+  /** Only jobs posted in the last 24 hours. */
+  freshOnly: boolean;
   sort: "newest" | "score";
 }
 
-export const DEFAULT_FILTERS: Filters = { view: "todo", tiers: new Set(["A", "B", "Maybe"]), companyId: "", query: "", remoteOnly: false, sort: "newest" };
+export const DEFAULT_FILTERS: Filters = { view: "todo", tiers: new Set(["A", "B", "Maybe"]), companyId: "", query: "", remoteOnly: false, freshOnly: false, sort: "newest" };
 
 const TIER_ORDER: Record<Tier, number> = { A: 0, B: 1, Maybe: 2 };
 const DAY = 86_400_000;
@@ -23,6 +25,17 @@ const DAY = 86_400_000;
 export function postedTime(j: StoredJob): number {
   const posted = j.postedAt ? Date.parse(j.postedAt) : NaN;
   return Number.isFinite(posted) ? posted : Date.parse(j.firstSeenAt);
+}
+
+/**
+ * Posted within the last 24 hours, when applying early counts most. A job that
+ * was already open at the first scan and has no posting date is never fresh:
+ * its real age is unknown.
+ */
+export function isFresh(j: StoredJob, now: Date): boolean {
+  const posted = j.postedAt ? Date.parse(j.postedAt) : NaN;
+  const t = Number.isFinite(posted) ? posted : j.baseline ? NaN : Date.parse(j.firstSeenAt);
+  return now.getTime() - t < DAY;
 }
 
 /** Which list a job belongs to. Applied wins over closed: you still want to track it. */
@@ -38,7 +51,7 @@ export function countViews(jobs: StoredJob[]): Record<View, number> {
   return n;
 }
 
-export function applyFilters(jobs: StoredJob[], f: Filters): StoredJob[] {
+export function applyFilters(jobs: StoredJob[], f: Filters, now: Date = new Date()): StoredJob[] {
   const q = f.query.trim().toLowerCase();
   const out = jobs.filter(
     (j) =>
@@ -46,6 +59,7 @@ export function applyFilters(jobs: StoredJob[], f: Filters): StoredJob[] {
       f.tiers.has(j.tier) &&
       (!f.companyId || j.companyId === f.companyId) &&
       (!f.remoteOnly || j.remote) &&
+      (!f.freshOnly || isFresh(j, now)) &&
       (!q || `${j.title} ${j.companyName} ${j.location} ${j.keywords.map((k) => k.term).join(" ")}`.toLowerCase().includes(q)),
   );
   if (f.view === "applied") return out.sort((a, b) => (b.appliedAt ?? "").localeCompare(a.appliedAt ?? ""));
@@ -53,8 +67,43 @@ export function applyFilters(jobs: StoredJob[], f: Filters): StoredJob[] {
   return out.sort((a, b) => postedTime(b) - postedTime(a) || TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.score - a.score);
 }
 
+export const STAGES: { id: JobStage; label: string }[] = [
+  { id: "interview", label: "Interview" },
+  { id: "offer", label: "Offer" },
+  { id: "rejected", label: "Rejected" },
+];
+
+export interface AppliedStats {
+  total: number;
+  /** Applied in the last 7 days. */
+  thisWeek: number;
+  waiting: number;
+  interview: number;
+  offer: number;
+  rejected: number;
+  /** Share of applications with any reply, in percent; null when nothing is applied. */
+  replyRate: number | null;
+}
+
+export function appliedStats(jobs: StoredJob[], now: Date): AppliedStats {
+  const applied = jobs.filter((j) => j.status === "applied");
+  const count = (s: JobStage) => applied.filter((j) => j.stage === s).length;
+  const interview = count("interview");
+  const offer = count("offer");
+  const rejected = count("rejected");
+  const replied = interview + offer + rejected;
+  return {
+    total: applied.length,
+    thisWeek: applied.filter((j) => !!j.appliedAt && now.getTime() - Date.parse(j.appliedAt) < 7 * DAY).length,
+    waiting: applied.length - replied,
+    interview, offer, rejected,
+    replyRate: applied.length ? Math.round((replied / applied.length) * 100) : null,
+  };
+}
+
+/** A follow-up is due only while there is no reply yet. */
 export function followUpDue(j: StoredJob, followUpDays: number, now: Date): boolean {
-  return j.status === "applied" && !!j.appliedAt && now.getTime() - new Date(j.appliedAt).getTime() >= followUpDays * DAY;
+  return j.status === "applied" && !j.stage && !!j.appliedAt && now.getTime() - new Date(j.appliedAt).getTime() >= followUpDays * DAY;
 }
 
 /** "just now", "5 min ago", "3 h ago", "2 d ago" */

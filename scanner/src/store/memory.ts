@@ -88,7 +88,7 @@ export class MemoryStore implements Store {
   }
 
   async dueFollowUps(appliedBeforeIso: string): Promise<StoredJob[]> {
-    return this.jobs.filter((j) => j.status === "applied" && !j.followUpRemindedAt && !!j.appliedAt && j.appliedAt <= appliedBeforeIso);
+    return this.jobs.filter((j) => j.status === "applied" && !j.stage && !j.followUpRemindedAt && !!j.appliedAt && j.appliedAt <= appliedBeforeIso);
   }
 
   async markNotified(ids: string[], field: NotifyField, atIso: string): Promise<void> {
